@@ -29,10 +29,10 @@ T2 Bread Butter
  git clone https://github.com/username/elite-apriori-app.git
  cd elite-apriori-app
 
-2. **Install Dependencies**:
+Install Dependencies:
 pip install -r requirements.txt
 
-3. ** Run the App**:
+ Run the App:
 Start the Streamlit app locally:
 streamlit run app.py
  
