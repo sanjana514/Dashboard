@@ -9,7 +9,7 @@ import plotly.express as px
 from mlxtend.frequent_patterns import apriori
 from mlxtend.preprocessing import TransactionEncoder
 
-st.set_page_config(page_title="Apriori Elite", page_icon="⛏️", layout="wide")
+st.set_page_config(page_title="Apriori Mining Dashboard", page_icon="✨", layout="wide")
 
 # CSS + FOOTER + BOXES FIXED
 st.markdown("""
@@ -17,6 +17,20 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
     * { font-family: 'Inter', sans-serif; }
     .stApp { background: #f8f9fa; }
+/* Warning block override */
+    [data-testid="stWarningBlock"] {
+    background-color: #ffcccc !important;
+    color: white !important;
+    border: 1px solid #cc0000;
+    border-radius: 5px;
+    padding: 10px;
+}
+
+/* More specific override */
+[data-testid="stWarningBlock"] > div {
+    background-color: #ffcccc !important;
+    color: white !important;
+}
 
     /* হেডার */
     .main-header {
@@ -365,8 +379,15 @@ if run or (st.session_state.freq is not None and
             freq = apriori(df_bin, min_support=min_support, use_colnames=True, max_len=max_len)
             
             if freq.empty:
-                st.warning("⚠️ No frequent patterns found! Try lowering min support.")
-                st.stop()
+              st.markdown(
+              """
+              <div style="background-color: #ff9999; color: white; border: 0px solid #cc0000; border-radius: 5px; padding: 10px; text-align: center;">
+               ⚠️ No frequent patterns found! Try lowering min support.
+              </div>
+              """,
+              unsafe_allow_html=True
+           )
+              st.stop()
             
             freq['length'] = freq['itemsets'].apply(len)
             freq['count'] = (freq['support'] * len(transactions)).astype(int)
