@@ -25,6 +25,30 @@ st.markdown("""
     border-radius: 5px;
     padding: 10px;
 }
+/* 💎 Light Teal Success Box — dark font guaranteed */
+[data-testid="stSuccessBlock"],
+div[data-baseweb="toast"] div[role="alert"],
+div.stAlert,
+div[class*="stMarkdown"] > div[role="status"] {
+    background: linear-gradient(135deg, #99f6e4, #5eead4) !important;
+    border: 1px solid #5eead4 !important;
+    border-radius: 10px !important;
+    padding: 0px 0px !important;
+    box-shadow: 0 4px 20px rgba(94, 234, 212, 0.45) !important;
+}
+
+/* ✅ Force text color inside success box */
+[data-testid="stSuccessBlock"], 
+[data-testid="stSuccessBlock"] * ,
+div[data-baseweb="toast"] div[role="alert"],
+div[data-baseweb="toast"] div[role="alert"] * ,
+div.stAlert, div.stAlert * ,
+div[class*="stMarkdown"] > div[role="status"],
+div[class*="stMarkdown"] > div[role="status"] * {
+    color: #0f172a !important;      /* dark navy font color */
+    fill: #0f172a !important;       /* icon / emoji color */
+    stroke: #0f172a !important;     /* fallback for some SVGs */
+}
 
 /* More specific override */
 [data-testid="stWarningBlock"] > div {
@@ -57,14 +81,14 @@ st.markdown("""
 
  /* Slider track (the line) */
 .stSlider [data-testid="stSliderTrack"] {
-    background: linear-gradient(90deg, #a855f7, #ec4899) !important;  /* <== track colors */
+    background: linear-gradient(90deg, #14b8a6, #0d9488) !important;  /* <== track colors */
     height: 5px !important;
     border-radius: 4px !important;
 }
 /* Slider thumb (the circle) */
 .stSlider [data-testid="stThumbValue"] + div > div {
-    background: #8b5cf6 !important;      /* <== thumb color */
-    border: 3px solid #7c3aed !important;/* <== thumb border color */
+    background: #5eead4 !important;      /* <== thumb color */
+    border: 3px solid #0d9488 !important;/* <== thumb border color */
     width: 18px !important;
     height: 18px !important;
     border-radius: 50% !important;
@@ -256,7 +280,7 @@ st.markdown("""
     
  .stat-box {
     background: linear-gradient(135deg, #ec4899, #8b5cf6);
-    width: 150px;
+    width: 160px;
     height: 80px;
     border-radius: 10px;
     color: white;
@@ -312,7 +336,7 @@ with st.sidebar:
     
     st.markdown("### Graph Color Theme")
     color_theme = st.selectbox("Choose", 
-        ["viridis", "plasma", "inferno", "magma", "cividis", "teal", "purple", "rainbow"])
+        ["viridis", "plasma", "inferno", "magma", "cividis", "teal", "rainbow"])
     
     run = st.button("RUN ANALYSIS", use_container_width=True)
 
@@ -511,30 +535,33 @@ if st.session_state.freq is not None:
             st.markdown('<h4 class="section-heading" style="font-size:1.2rem !important;"> Statistics</h4>', unsafe_allow_html=True)
             
             st.markdown(f"""
-            <div class="stat-box">
+            <div class="stat-box" style="text-align: left;padding-left: 16px";>
                 <h5>Max Support</h5>
                 <p>{df['support_pct'].max():.2f}%</p>
             </div>
             """, unsafe_allow_html=True)
             
             st.markdown(f"""
-            <div class="stat-box" style="background: linear-gradient(135deg, #8b5cf6, #06b6d4);">
+            <div class="stat-box" style="background: linear-gradient(135deg, #8b5cf6, #06b6d4);
+                        text-align: left;padding-left: 16px;">
                 <h5>Min Support</h5>
                 <p>{df['support_pct'].min():.2f}%</p>
             </div>
             """, unsafe_allow_html=True)
             
             st.markdown(f"""
-            <div class="stat-box" style="background: linear-gradient(135deg, #ec4899, #f59e0b);">
+            <div class="stat-box" style="background: linear-gradient(135deg, #ec4899, #f59e0b);
+                        text-align: left;padding-left: 16px;">
                 <h5>Avg Pattern Size</h5>
-                <p>{df['length'].mean():.1f}</p>
+                <p style="text-align:right;padding-right:16px";>{df['length'].mean():.1f}</p>
             </div>
             """, unsafe_allow_html=True)
             
             st.markdown(f"""
-            <div class="stat-box" style="background: linear-gradient(135deg, #8b5cf6, #ec4899);">
+            <div class="stat-box" style="background: linear-gradient(135deg, #8b5cf6, #ec4899);
+                        text-align: left;padding-left: 16px;">
                 <h5>Most Frequent Size</h5>
-                <p>{int(df['length'].mode()[0])}</p>
+                <p style="text-align:right;padding-right:16px";>{int(df['length'].mode()[0])}</p>
             </div>
             """, unsafe_allow_html=True)
 
