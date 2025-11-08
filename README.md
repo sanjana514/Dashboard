@@ -35,4 +35,7 @@ pip install -r requirements.txt
  Run the App:
 Start the Streamlit app locally:
 streamlit run app.py
- 
+
+## Deploying the App 
+This app is deployed using Streamlit Community Cloud
+** Live URL** : https://2hcgapppyrzb2daifseu7mp.streamlit.app/ – Access the full dashboard here!And use the transactions.csv dataset file.
