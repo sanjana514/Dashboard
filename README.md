@@ -17,7 +17,7 @@ The dashboard uses the Apriori algorithm to identify frequent itemsets in your t
 - **Space-separated**:Example:
 T1 Milk Bread
 T2 Bread Butter
-- **Binary format**: Columns with 1/True indicate item presence.
+- **Binary format**: Columns with 1/True indicate item presence
 
 ## Prerequisites
 - Python 3.7 or higher
