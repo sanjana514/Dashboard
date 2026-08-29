@@ -1,43 +1,63 @@
-# Elite Apriori Mining Dashboard
+# 🛒 Elite Apriori Mining Dashboard
 
-Welcome to the **Elite Apriori Mining Dashboard**, a powerful and user-friendly tool built with Streamlit to perform Apriori algorithm-based frequent pattern mining on transactional data. This dashboard allows you to upload CSV files, analyze patterns, visualize results, and export findings with ease.
+An interactive web dashboard for discovering frequent itemsets in transactional data using the **Apriori algorithm** — built with Streamlit for real-time, visual market basket analysis.
 
-## Features
-- **Real-time Mining**: Analyze transaction data using the Apriori algorithm.
-- **Customizable Parameters**: Adjust min support, max pattern size, and top N results.
-- **Interactive Visualizations**: Explore patterns with bar charts, histograms, and scatter plots.
-- **Color Themes**: Choose from multiple color themes for visualizations.
-- **Export Option**: Download results as a CSV file.
-- **Mobile-Ready**: Responsive design for use on any device.
+📄 See [`Apriori Mining Dashboard output.pdf`](./Apriori%20Mining%20Dashboard%20output.pdf) for a walkthrough of the dashboard's output and visualizations.
 
-## How It Works
-The dashboard uses the Apriori algorithm to identify frequent itemsets in your transaction data. You can upload a CSV file (space-separated or binary format), set mining parameters, and visualize the results in real-time.
+## 📌 Overview
 
-### Supported CSV Formats
-- **Space-separated**:Example:
+This dashboard lets users upload transaction data and instantly discover frequently co-occurring item patterns (association rule mining), commonly used in retail for market basket analysis, recommendation systems, and inventory planning. Users can tune mining parameters, explore results through multiple interactive visualizations, and export findings — all without writing a single line of code.
+
+## ✨ Features
+
+- **Real-Time Mining** — Runs the Apriori algorithm on uploaded transaction data instantly
+- **Customizable Parameters** — Adjust minimum support threshold, maximum pattern size, and number of top results shown
+- **Multi-Tab Analysis View**:
+  - **Pattern Table** — Ranked view of top frequent itemsets
+  - **Graph** — Bar charts, pattern size distribution, support distribution histogram, and count-vs-support scatter plot
+  - **Details** — Full sorted itemset table plus summary statistics (max/min support, average & most frequent pattern size)
+  - **Export** — Download complete results as CSV
+- **Customizable Color Themes** — Multiple Plotly color scales (viridis, plasma, inferno, magma, cividis, teal, rainbow) for visualizations
+- **Flexible CSV Input** — Supports both transaction-list format and one-hot/binary encoded format
+
+## 🛠️ Tech Stack
+
+- **Streamlit** — web app framework & UI
+- **mlxtend** — Apriori algorithm & transaction encoding
+- **Pandas** — data handling
+- **Plotly Express** — interactive visualizations
+
+## 📂 Supported CSV Formats
+
+**1. Transaction list (space-separated):**
 T1 Milk Bread
 T2 Bread Butter
-- **Binary format**: Columns with 1/True indicate item presence
 
-## Prerequisites
-- Python 3.7 or higher
-- Internet connection (for deploying and loading libraries)
+**2. One-hot / binary encoded:**
+Each column represents an item; a value of `1`/`True` indicates the item is present in that transaction.
 
-## Installation and Running Locally
-1. **Clone the Repository**:
- ```bash
- git clone https://github.com/username/elite-apriori-app.git
- cd elite-apriori-app
+## 🚀 Running Locally
 
-Install Dependencies:
-pip install -r requirements.txt
-
-Run the App:
-Start the Streamlit app locally:
-streamlit run app.py 
+**1. Clone the repository:**
+```bash
+git clone https://github.com/sanjana514/elite-apriori-app.git
+cd elite-apriori-app
 ```
-## Deploying the App
 
-This app is deployed using Streamlit Community Cloud.
-Live URL: https://2hcgapppyrzb2daifseu7mp.streamlit.app/ – Access the full dashboard here!
-Use the transactions.csv dataset file to test the app.
+**2. Install dependencies:**
+```bash
+pip install -r requirements.txt
+```
+
+**3. Run the app:**
+```bash
+streamlit run app.py
+```
+
+The app will open in your browser at `http://localhost:8501`.
+
+> 💡 A sample dataset (`transactions.csv`) is included in the repo for quick testing.
+
+---
+
+*This project was completed as part of the Big Data Analytics coursework at East West University.*
