@@ -1,5 +1,5 @@
 """
-FAISS Product Matching System - Streamlit Version (v2 - Card UI)
+FAISS Product Matching System - Streamlit Version (v3 - Fixed UI)
 Run: streamlit run app.py
 """
 
@@ -8,6 +8,8 @@ import pandas as pd
 import numpy as np
 import faiss
 import time
+import traceback
+import re
 import plotly.graph_objects as go
 from datetime import datetime
 from sentence_transformers import SentenceTransformer
@@ -38,7 +40,14 @@ if st.session_state.build_times is None:
     st.session_state.build_times = {}
 
 # ============================================================================
-# Global Styling — fixed contrast: dark bg -> light text everywhere
+# Global Styling
+# Fix summary (per feedback):
+#  - File uploader dropzone/browse button text was invisible (dark on dark)
+#  - Selectbox (closed box + open dropdown list) was white-on-white
+#  - Text input (search box) was white-on-white
+#  - Buttons: made bigger text, light background, dark readable text
+#  - Code block (CSV format example) was unreadable -> now rendered with st.code
+#  - Dataframes get a fixed height so tables don't blow up the page
 # ============================================================================
 st.markdown("""
 <style>
@@ -58,33 +67,153 @@ st.markdown("""
     .main-header h1 { color: #ffffff !important; margin: 0; font-size: 28px; font-weight: 800; }
     .main-header p { color: rgba(255,255,255,0.95) !important; margin: 12px 0 0 0; font-size: 16px; font-weight: 500; }
 
-    div.stButton > button {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
-        color: #ffffff !important; border: none !important; font-weight: 700 !important;
-        border-radius: 10px !important; padding: 0.6rem 1.5rem !important;
+    /* ---------------- Buttons: bigger text, vivid bg, dark text ----------------
+       NOTE: uses very high-specificity + !important selectors and covers every
+       descendant node (p/span/div) inside the button, because the global
+       ".stApp p/span" light-text rule below would otherwise win and silently
+       wash the button text back out to near-white/invisible. Covers both the
+       default ("secondary") and primary (big, type="primary") buttons, and
+       both the old and new Streamlit test-id names, since default buttons
+       ship their own background that can otherwise out-rank a generic rule. */
+    div.stButton > button,
+    div.stButton > button:focus,
+    div.stButton > button:active,
+    button[kind="primary"],
+    button[kind="secondary"],
+    [data-testid="stBaseButton-primary"],
+    [data-testid="stBaseButton-secondary"],
+    [data-testid="baseButton-primary"],
+    [data-testid="baseButton-secondary"] {
+        background: linear-gradient(135deg, #ffd166 0%, #ffb703 100%) !important;
+        color: #1a1a2e !important;
+        border: none !important;
+        font-weight: 800 !important;
+        font-size: 17px !important;
+        border-radius: 10px !important;
+        padding: 0.75rem 2rem !important;
+        box-shadow: 0 4px 16px rgba(255,183,3,0.35) !important;
+        transition: all 0.15s ease-in-out !important;
     }
-    div.stButton > button:hover { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(102,126,234,0.4); }
+    div.stButton > button:hover,
+    button[kind="primary"]:hover,
+    button[kind="secondary"]:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 22px rgba(255,183,3,0.5) !important;
+    }
+    /* Force every descendant (p/span/div Streamlit wraps the label in) to the
+       same dark, readable color regardless of version-specific markup. */
+    div.stButton > button *,
+    button[kind="primary"] *,
+    button[kind="secondary"] * {
+        color: #1a1a2e !important;
+        font-weight: 800 !important;
+        font-size: 17px !important;
+    }
 
-    .stTabs [data-baseweb="tab-list"] button { color: #cfcfe8 !important; font-weight: 600; }
+    /* ---------------- Tabs ---------------- */
+    .stTabs [data-baseweb="tab-list"] button { color: #cfcfe8 !important; font-weight: 600; font-size: 15px; }
     .stTabs [data-baseweb="tab-list"] button[aria-selected="true"] { color: #ffffff !important; border-bottom-color: #8b5cf6 !important; }
 
-    .stTextInput input, .stSelectbox div, .stSlider label { color: #ffffff !important; }
-    .stTextInput input { background: rgba(255,255,255,0.08) !important; }
+    /* ---------------- Text input (search box) ---------------- */
+    .stTextInput label, .stSelectbox label, .stSlider label { color: #ffffff !important; font-weight: 700 !important; }
+    .stTextInput input {
+        background: #ffffff !important;
+        color: #111827 !important;
+        border-radius: 8px !important;
+        border: 1px solid rgba(255,255,255,0.25) !important;
+        font-weight: 600 !important;
+    }
+    .stTextInput input::placeholder { color: #6b7280 !important; opacity: 1 !important; }
 
+    /* ---------------- Selectbox: closed box ---------------- */
+    div[data-baseweb="select"] > div {
+        background: #ffffff !important;
+        color: #111827 !important;
+        border-radius: 8px !important;
+        border: 1px solid rgba(255,255,255,0.25) !important;
+    }
+    div[data-baseweb="select"] span, div[data-baseweb="select"] div { color: #111827 !important; }
+
+    /* ---------------- Selectbox: open dropdown list (renders in a portal) ---------------- */
+    div[data-baseweb="popover"] { z-index: 9999 !important; }
+    div[data-baseweb="popover"] ul, ul[role="listbox"] {
+        background: #ffffff !important;
+    }
+    div[data-baseweb="popover"] li, ul[role="listbox"] li, ul[role="listbox"] li * {
+        background: #ffffff !important;
+        color: #111827 !important;
+        font-weight: 600 !important;
+    }
+    ul[role="listbox"] li:hover { background: #ece7ff !important; }
+
+    /* ---------------- File uploader ---------------- */
+    [data-testid="stFileUploader"] section {
+        background: rgba(255,255,255,0.06) !important;
+        border: 2px dashed rgba(255,255,255,0.3) !important;
+        border-radius: 12px !important;
+    }
+    [data-testid="stFileUploaderDropzone"] * ,
+    [data-testid="stFileUploader"] section * {
+        color: #f1f1f6 !important;
+    }
+    [data-testid="stFileUploaderDropzone"] small,
+    [data-testid="stFileUploader"] section small {
+        color: #cfcfe8 !important;
+    }
+    [data-testid="stFileUploader"] section button,
+    [data-testid="stBaseButton-secondary"] {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%) !important;
+        color: #ffffff !important;
+        border: none !important;
+        font-weight: 700 !important;
+    }
+    [data-testid="stFileUploader"] section button * { color: #ffffff !important; }
+    [data-testid="stFileUploaderFile"] {
+        background: rgba(255,255,255,0.1) !important;
+        border-radius: 8px !important;
+    }
+    [data-testid="stFileUploaderFile"] * { color: #ffffff !important; }
+
+    /* ---------------- Slider ---------------- */
+    .stSlider [data-baseweb="slider"] div { color: #ffffff !important; }
+
+    /* ---------------- Dataframe ---------------- */
     .stDataFrame { background: rgba(255,255,255,0.03); border-radius: 10px; }
 
+    /* ---------------- Markdown tables ---------------- */
     .stMarkdown table { color: #f1f1f6 !important; }
     .stMarkdown th { color: #ffffff !important; background: rgba(255,255,255,0.08) !important; }
     .stMarkdown td { color: #e5e5f0 !important; }
 
+    /* ---------------- Code blocks (st.code) ---------------- */
+    .stCodeBlock, .stCodeBlock pre, .stCodeBlock code {
+        background: #14121f !important;
+        color: #ffd166 !important;
+        border-radius: 8px !important;
+    }
     .stMarkdown code { color: #ffd166 !important; background: rgba(255,255,255,0.08) !important; }
+
+    /* ---------------- Expander ---------------- */
+    .streamlit-expanderHeader, [data-testid="stExpander"] summary { color: #ffffff !important; font-weight: 700 !important; }
+
+    /* ---------------- Custom info-card text classes ----------------
+       Two combined classes = specificity (0,2,0), which beats the global
+       ".stApp p" / ".stMarkdown p" rule above (specificity (0,1,1)) no
+       matter what order things render in or how Streamlit wraps elements.
+       This is the reliable fix for the "text goes invisible" problem. */
+    .stApp .perf-card .perf-title  { color: #ffffff !important; font-size: 22px !important; font-weight: 800 !important; margin: 0 0 16px 0 !important; }
+    .stApp .perf-card .perf-label  { color: rgba(255,255,255,0.85) !important; font-size: 14px !important; font-weight: 700 !important; letter-spacing: 0.04em; margin: 0 !important; }
+    .stApp .perf-card .perf-value  { color: #ffffff !important; font-size: 28px !important; font-weight: 900 !important; margin: 6px 0 0 0 !important; }
+
+    .stApp .metric-card .metric-label { color: rgba(255,255,255,0.9) !important; font-size: 14px !important; font-weight: 800 !important; letter-spacing: 0.03em; margin: 0 !important; }
+    .stApp .metric-card .metric-value { color: #ffffff !important; font-size: 34px !important; font-weight: 900 !important; margin: 10px 0 0 0 !important; }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("""
 <div class="main-header">
     <h1>🔍 FAISS Product Matching System</h1>
-    <p>✨ Accurate Metrics • ⚡ Real FAISS • 📊 Comparison Charts • ✅ Fixed Calculations</p>
+    <p> Accurate Metrics •  Real FAISS •  Comparison Charts •  Fixed Calculations</p>
 </div>
 """, unsafe_allow_html=True)
 
@@ -95,12 +224,17 @@ def process_csv(file):
     try:
         data = pd.read_csv(file)
 
+        if len(data) == 0:
+            return False, "The uploaded CSV has no rows."
+
         if 'name' in data.columns:
             data['search_text'] = data['name'].astype(str)
         elif 'product_name' in data.columns:
             data['search_text'] = data['product_name'].astype(str)
         else:
             text_cols = data.select_dtypes(include=['object']).columns[:3]
+            if len(text_cols) == 0:
+                return False, "No text columns found to build a searchable 'search_text' field."
             data['search_text'] = data[text_cols].astype(str).agg(' '.join, axis=1)
 
         data['search_text'] = data['search_text'].str.lower().str.strip()
@@ -134,10 +268,15 @@ def process_csv(file):
         build_times['FlatIP'] = time.time() - start
         indices['FlatIP'] = idx_flatip
 
+        # NOTE (bug fix): IndexIVFFlat defaults to METRIC_L2 even when given an
+        # inner-product quantizer. Since embeddings are normalized and every other
+        # index in this app is cosine/inner-product based, the IVF index must be
+        # created with METRIC_INNER_PRODUCT explicitly, or its search results and
+        # "similarity" scores are computed on the wrong metric.
         start = time.time()
         nlist = min(IVF_NLIST, max(1, len(embeddings) // 10))
         quantizer = faiss.IndexFlatIP(EMBEDDING_DIM)
-        idx_ivf = faiss.IndexIVFFlat(quantizer, EMBEDDING_DIM, nlist)
+        idx_ivf = faiss.IndexIVFFlat(quantizer, EMBEDDING_DIM, nlist, faiss.METRIC_INNER_PRODUCT)
         idx_ivf.train(embeddings)
         idx_ivf.add(embeddings)
         idx_ivf.nprobe = min(IVF_NPROBE, nlist)
@@ -159,7 +298,7 @@ def process_csv(file):
         return True, build_times
 
     except Exception as e:
-        return False, str(e)
+        return False, f"{e}\n\n{traceback.format_exc()}"
 
 
 # ============================================================================
@@ -171,6 +310,9 @@ def search_products(query, top_k, selected_index, compare_with):
     indices = st.session_state.indices
     build_times = st.session_state.build_times
 
+    # Guard: don't ask for more results than exist in the dataset
+    top_k = min(top_k, len(data))
+
     logs = []
     logs.append(f"Query: '{query}' | Top K: {top_k} | Index: {selected_index}")
     logs.append(f"Dataset size: {len(data):,} products")
@@ -180,7 +322,8 @@ def search_products(query, top_k, selected_index, compare_with):
 
     ground_truth_index = indices['FlatIP']
     gt_distances, gt_indices = ground_truth_index.search(query_embedding, top_k)
-    gt_set = set(gt_indices[0].tolist())
+    gt_indices = gt_indices[0]
+    gt_set = set(int(i) for i in gt_indices if i != -1)
 
     selected_idx = indices[selected_index]
     start_time = time.time()
@@ -189,7 +332,14 @@ def search_products(query, top_k, selected_index, compare_with):
 
     result_indices = result_indices[0]
     result_distances = distances[0]
-    retrieved_set = set(result_indices.tolist())
+
+    # Guard: FAISS returns -1 for "no result" (e.g. tiny datasets / IVF with few
+    # trained centroids). Drop those instead of letting them wrap around via
+    # negative indexing into the wrong row.
+    valid_mask = result_indices != -1
+    result_indices = result_indices[valid_mask]
+    result_distances = result_distances[valid_mask]
+    retrieved_set = set(int(i) for i in result_indices)
 
     logs.append(f"{selected_index} search completed in {search_time*1000:.2f}ms")
 
@@ -201,7 +351,7 @@ def search_products(query, top_k, selected_index, compare_with):
     ap = 0
     hits = 0
     for i, idx in enumerate(result_indices):
-        if idx in gt_set:
+        if int(idx) in gt_set:
             hits += 1
             ap += hits / (i + 1)
     map_score = ap / len(gt_set) if len(gt_set) > 0 else 0
@@ -212,12 +362,12 @@ def search_products(query, top_k, selected_index, compare_with):
     if selected_index in ['FlatIP', 'IVF', 'HNSW']:
         similarities = np.clip(result_distances, 0, 1)
     else:
-        max_dist = np.max(result_distances) if np.max(result_distances) > 0 else 1
+        max_dist = np.max(result_distances) if len(result_distances) and np.max(result_distances) > 0 else 1
         similarities = 1 - (result_distances / (max_dist + 1e-6))
         similarities = np.clip(similarities, 0, 1)
 
     results_df = data.iloc[result_indices].copy()
-    results_df['Rank'] = range(1, top_k + 1)
+    results_df['Rank'] = range(1, len(result_indices) + 1)
     results_df['Similarity'] = [f"{s*100:.1f}%" for s in similarities]
     results_df['Distance'] = [f"{d:.4f}" for d in result_distances]
 
@@ -260,77 +410,118 @@ def search_products(query, top_k, selected_index, compare_with):
 
 # ============================================================================
 # HTML Card Renderers
+#
+# Two important fixes baked into every renderer below:
+#
+# 1. FLATTENING: Streamlit's markdown parser treats any line indented 4+
+#    spaces as a preformatted code block. Because these HTML strings live
+#    inside indented Python functions, the raw HTML source was being shown
+#    as literal text instead of being rendered (this was the "broken card"
+#    bug). _flat() strips all line-leading whitespace/newlines before the
+#    string reaches st.markdown, so it's always treated as inline raw HTML.
+#
+# 2. COLOR !important: the global stylesheet forces most text to a light
+#    color with !important so it reads on the dark app background. A plain
+#    inline color (no !important) loses to that rule, which is why the
+#    light-background metric cards were rendering with invisible near-white
+#    text. Every color used here now also carries !important so it wins.
 # ============================================================================
+def _flat(html: str) -> str:
+    """Collapse a multi-line, indented HTML template into whitespace-safe markup."""
+    return re.sub(r'\n\s*', '', html).strip()
+
+
 def render_performance_card(index_name, build_time, search_time):
     total_time = build_time + search_time
-    st.markdown(f"""
-    <div style="background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
-                padding: 22px 26px; border-radius: 14px; margin-bottom: 18px;
-                box-shadow: 0 6px 18px rgba(0,0,0,0.35);">
-        <h3 style="margin: 0 0 14px 0; color: #0b1220; font-size: 19px; font-weight: 800;">
-            {index_name} Performance
-        </h3>
-        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;">
+    html = f"""
+    <div class="perf-card" style="background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+                padding: 24px 28px; border-radius: 14px; margin-bottom: 18px;
+                box-shadow: 0 6px 20px rgba(37,117,252,0.35);">
+        <h3 class="perf-title">{index_name} Performance</h3>
+        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px;">
             <div>
-                <p style="margin:0; color:#0b1220; opacity:0.75; font-size:12px; font-weight:600;">BUILD TIME</p>
-                <p style="margin:4px 0 0 0; color:#0b1220; font-size:24px; font-weight:800;">{build_time:.3f}s</p>
+                <p class="perf-label">BUILD TIME</p>
+                <p class="perf-value">{build_time:.3f}s</p>
             </div>
             <div>
-                <p style="margin:0; color:#0b1220; opacity:0.75; font-size:12px; font-weight:600;">SEARCH TIME</p>
-                <p style="margin:4px 0 0 0; color:#0b1220; font-size:24px; font-weight:800;">{search_time*1000:.2f}ms</p>
+                <p class="perf-label">SEARCH TIME</p>
+                <p class="perf-value">{search_time*1000:.2f}ms</p>
             </div>
             <div>
-                <p style="margin:0; color:#0b1220; opacity:0.75; font-size:12px; font-weight:600;">TOTAL TIME</p>
-                <p style="margin:4px 0 0 0; color:#0b1220; font-size:24px; font-weight:800;">{total_time:.3f}s</p>
+                <p class="perf-label">TOTAL TIME</p>
+                <p class="perf-value">{total_time:.3f}s</p>
             </div>
         </div>
     </div>
-    """, unsafe_allow_html=True)
+    """
+    st.markdown(_flat(html), unsafe_allow_html=True)
 
 
 def render_eval_metrics(top_k, recall, precision, f1, map_score):
+    # Four distinct, saturated gradients (not pale pastels) with bold white
+    # text -- readable regardless of any Streamlit theme cascade quirks.
     boxes = [
-        (f"Recall@{top_k}", recall, "#f7b733", "#fc4a1a"),
-        (f"Precision@{top_k}", precision, "#fbc2eb", "#a6c1ee"),
-        ("F1 Score", f1, "#89f7fe", "#66a6ff"),
-        (f"MAP@{top_k}", map_score, "#f6d365", "#fda085"),
+        (f"Recall@{top_k}", recall, "#f857a6", "#ff5858"),
+        (f"Precision@{top_k}", precision, "#7f7fd5", "#4b6cb7"),
+        ("F1 Score", f1, "#11998e", "#38ef7d"),
+        (f"MAP@{top_k}", map_score, "#f7971e", "#ff5858"),
     ]
     cols = st.columns(4)
     for col, (label, value, c1, c2) in zip(cols, boxes):
         with col:
-            st.markdown(f"""
-            <div style="background: linear-gradient(135deg, {c1} 0%, {c2} 100%);
-                        padding: 20px; border-radius: 14px; text-align: center;
-                        box-shadow: 0 4px 14px rgba(0,0,0,0.35);">
-                <p style="margin:0; color:#0b1220; opacity:0.8; font-size:13px; font-weight:700;">{label}</p>
-                <p style="margin:8px 0 0 0; color:#0b1220; font-size:30px; font-weight:800;">{value:.3f}</p>
+            html = f"""
+            <div class="metric-card" style="background: linear-gradient(135deg, {c1} 0%, {c2} 100%);
+                        padding: 22px; border-radius: 14px; text-align: center;
+                        box-shadow: 0 4px 16px rgba(0,0,0,0.35);">
+                <p class="metric-label">{label}</p>
+                <p class="metric-value">{value:.3f}</p>
             </div>
-            """, unsafe_allow_html=True)
+            """
+            st.markdown(_flat(html), unsafe_allow_html=True)
 
 
 def render_product_cards(results_df, exclude_cols=('search_text',)):
+    """
+    Redesigned card: similarity is a big rounded badge pinned to the top
+    corner, and every field is laid out as a clean label/value row instead of
+    a wall of run-together text, so it's actually easy to scan.
+    """
     cards_html = "<div style='display:flex; flex-wrap:wrap; gap:18px; margin-top: 10px;'>"
     for _, row in results_df.iterrows():
-        details = ""
+        rows_html = ""
         for col, val in row.items():
             if col in exclude_cols or col in ['Rank', 'Similarity', 'Distance']:
                 continue
-            details += f"<p style='margin:4px 0; font-size:13px; color:#e5e5f0;'><strong style='color:#ffffff;'>{col}:</strong> {val}</p>"
+            val_str = str(val)
+            if len(val_str) > 140:
+                val_str = val_str[:140] + "…"
+            rows_html += (
+                "<div style='display:flex; justify-content:space-between; gap:12px; "
+                "padding:7px 0; border-bottom:1px solid rgba(255,255,255,0.08);'>"
+                f"<span style='color:#a5b4fc !important; font-size:11px; font-weight:800; text-transform:uppercase; "
+                f"letter-spacing:0.04em; white-space:nowrap; flex-shrink:0;'>{col}</span>"
+                f"<span style='color:#f1f1f6 !important; font-size:13.5px; text-align:right;'>{val_str}</span>"
+                "</div>"
+            )
 
-        cards_html += f"""
-        <div style="background: linear-gradient(135deg, #302b63 0%, #24243e 100%);
-                    padding: 20px; border-radius: 14px; box-shadow: 0 4px 15px rgba(0,0,0,0.35);
-                    width: calc(50% - 9px); min-width: 300px; max-height: 300px; overflow-y: auto;
-                    border: 1px solid rgba(255,255,255,0.08);">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
-                <h3 style="margin:0; color:#4facfe; font-size:18px; font-weight:800;">Rank {row['Rank']}</h3>
-                <p style="margin:0; color:#38ef7d; font-size:20px; font-weight:800;">{row['Similarity']}</p>
-            </div>
-            <div>{details}</div>
-        </div>
-        """
+        cards_html += (
+            "<div style='background: linear-gradient(135deg, #302b63 0%, #24243e 100%); "
+            "padding: 20px; border-radius: 16px; box-shadow: 0 4px 15px rgba(0,0,0,0.4); "
+            "width: calc(50% - 9px); min-width: 300px; max-height: 320px; overflow-y: auto; "
+            "border: 1px solid rgba(255,255,255,0.08);'>"
+            "<div style='display:flex; justify-content:space-between; align-items:center; margin-bottom:14px;'>"
+            f"<h3 style='margin:0; color:#4facfe !important; font-size:16px; font-weight:800;'>Rank #{row['Rank']}</h3>"
+            "<div style='background: linear-gradient(135deg,#38ef7d 0%,#11998e 100%); "
+            "color:#062a20 !important; font-weight:900; font-size:16px; padding:6px 16px; "
+            f"border-radius:999px; white-space:nowrap; box-shadow:0 3px 10px rgba(0,0,0,0.3);'>{row['Similarity']}</div>"
+            "</div>"
+            f"<div>{rows_html}</div>"
+            "</div>"
+        )
     cards_html += "</div>"
-    st.markdown(cards_html, unsafe_allow_html=True)
+    # Built without embedded newlines already, but flatten defensively in case
+    # any field value itself contains a literal newline.
+    st.markdown(_flat(cards_html), unsafe_allow_html=True)
 
 
 # ============================================================================
@@ -356,7 +547,7 @@ def benchmark_index(emb, idx_type, test_queries=100):
     elif idx_type == 'IVF':
         nlist = min(100, max(1, n // 10))
         quantizer = faiss.IndexFlatIP(d)
-        idx = faiss.IndexIVFFlat(quantizer, d, nlist)
+        idx = faiss.IndexIVFFlat(quantizer, d, nlist, faiss.METRIC_INNER_PRODUCT)
         idx.train(emb)
         idx.add(emb)
         idx.nprobe = min(10, nlist)
@@ -408,7 +599,7 @@ def run_benchmark(progress_bar, status_text):
     ivf_configs = []
     for nlist, nprobe in [(100, 10), (200, 10), (100, 20), (200, 20)]:
         quantizer = faiss.IndexFlatIP(EMBEDDING_DIM)
-        idx_ivf = faiss.IndexIVFFlat(quantizer, EMBEDDING_DIM, nlist)
+        idx_ivf = faiss.IndexIVFFlat(quantizer, EMBEDDING_DIM, nlist, faiss.METRIC_INNER_PRODUCT)
         start = time.time()
         idx_ivf.train(test_emb)
         idx_ivf.add(test_emb)
@@ -479,19 +670,28 @@ with tab1:
                        f"Build times — FlatL2: {result['FlatL2']:.2f}s | FlatIP: {result['FlatIP']:.2f}s | "
                        f"IVF: {result['IVF']:.2f}s | HNSW: {result['HNSW']:.2f}s")
         else:
-            st.error(f"❌ Error: {result}")
+            st.error("❌ Could not process this CSV.")
+            with st.expander("Show error details"):
+                st.code(result)
 
     if st.session_state.uploaded_data is not None:
         with st.expander("📋 Dataset Preview", expanded=False):
-            st.dataframe(st.session_state.uploaded_data.head(10), use_container_width=True)
+            st.dataframe(st.session_state.uploaded_data.head(10), use_container_width=True, height=280)
 
-        st.markdown("""
+        if st.button("🗑️ Clear dataset & start over"):
+            for key in ['uploaded_data', 'embeddings', 'model', 'indices', 'build_times']:
+                st.session_state[key] = None
+            st.session_state.indices = {}
+            st.session_state.build_times = {}
+            st.rerun()
+
+        st.markdown(_flat("""
         <div style="background: rgba(255,255,255,0.08); padding: 14px 18px; border-radius: 10px; margin: 14px 0;">
-            <p style="margin:0; color:#f1f1f6; font-size:14px;">
+            <p style="margin:0; color:#f1f1f6 !important; font-size:14px;">
                 💡 <strong>Tips:</strong> Enter a search query → select index type → choose comparison → click Search
             </p>
         </div>
-        """, unsafe_allow_html=True)
+        """), unsafe_allow_html=True)
 
         col1, col2 = st.columns([3, 1])
         with col1:
@@ -511,74 +711,84 @@ with tab1:
             if not query.strip():
                 st.warning("⚠️ Please enter a search query")
             else:
-                with st.spinner("Searching..."):
-                    results_df, fig, logs, metrics = search_products(query, top_k, index_selector, compare_selector)
+                try:
+                    with st.spinner("Searching..."):
+                        results_df, fig, logs, metrics = search_products(query, top_k, index_selector, compare_selector)
 
-                st.success(f"✅ Found {top_k} products | Recall: {metrics['recall']:.3f} | Precision: {metrics['precision']:.3f}")
+                    st.success(f"✅ Found {len(results_df)} products | Recall: {metrics['recall']:.3f} | Precision: {metrics['precision']:.3f}")
 
-                render_performance_card(index_selector, metrics['build_time'], metrics['search_time'])
-                render_eval_metrics(top_k, metrics['recall'], metrics['precision'], metrics['f1'], metrics['map'])
+                    render_performance_card(index_selector, metrics['build_time'], metrics['search_time'])
+                    render_eval_metrics(top_k, metrics['recall'], metrics['precision'], metrics['f1'], metrics['map'])
 
-                st.markdown("<h3 style='margin-top:24px;'>📦 Matched Products</h3>", unsafe_allow_html=True)
-                render_product_cards(results_df)
+                    st.markdown("<h3 style='margin-top:24px;'> Matched Products</h3>", unsafe_allow_html=True)
+                    render_product_cards(results_df)
 
-                st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
-                st.plotly_chart(fig, use_container_width=True)
+                    st.markdown("<div style='height:10px;'></div>", unsafe_allow_html=True)
+                    st.plotly_chart(fig, use_container_width=True)
 
-                with st.expander("📝 Execution Logs"):
-                    for log in logs:
-                        st.markdown(f"<p style='font-family:monospace; font-size:13px; color:#cfcfe8;'>[{datetime.now().strftime('%H:%M:%S')}] {log}</p>", unsafe_allow_html=True)
+                    with st.expander("📝 Execution Logs"):
+                        for log in logs:
+                            st.markdown(f"<p style='font-family:monospace; font-size:13px; color:#cfcfe8;'>[{datetime.now().strftime('%H:%M:%S')}] {log}</p>", unsafe_allow_html=True)
+                except Exception as e:
+                    st.error("❌ Something went wrong while searching.")
+                    with st.expander("Show error details"):
+                        st.code(f"{e}\n\n{traceback.format_exc()}")
     else:
         st.warning("⚠️ Please upload a CSV file to get started")
 
 with tab2:
-    st.markdown("""
+    st.markdown(_flat("""
     <div style="background: rgba(255,255,255,0.08); padding: 20px; border-radius: 12px; margin-bottom: 20px;">
-        <h3 style="color:#ffffff; margin:0 0 8px 0;">🧪 Comprehensive Benchmark Testing</h3>
-        <p style="color:#e5e5f0; margin:0; font-size:14px;">
+        <h3 style="color:#ffffff !important; margin:0 0 8px 0;">🧪 Comprehensive Benchmark Testing</h3>
+        <p style="color:#e5e5f0 !important; margin:0; font-size:14px;">
             This will test FlatL2 vs IVF performance across multiple dataset sizes (4.5K → 200K products)
             and evaluate different IVF configurations with accurate Recall and Precision metrics.
         </p>
     </div>
-    """, unsafe_allow_html=True)
+    """), unsafe_allow_html=True)
 
     if st.session_state.embeddings is None:
         st.warning("⚠️ Please upload a dataset first (in the Search Products tab)")
     else:
-        if st.button("🚀 Run Full Benchmark", type="primary"):
-            progress_bar = st.progress(0)
-            status_text = st.empty()
+        if st.button(" Run Full Benchmark", type="primary"):
+            try:
+                progress_bar = st.progress(0)
+                status_text = st.empty()
 
-            summary, fig_build, fig_search, comparison_df, ivf_config_df = run_benchmark(progress_bar, status_text)
+                summary, fig_build, fig_search, comparison_df, ivf_config_df = run_benchmark(progress_bar, status_text)
 
-            st.markdown(f"""
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                        padding: 24px 28px; border-radius: 14px; margin: 14px 0;
-                        box-shadow: 0 8px 22px rgba(102,126,234,0.4);">
-                <h3 style="margin:0 0 10px 0; color:#ffffff;">🎉 Benchmark Complete — Real FAISS Results</h3>
-                <p style="margin:6px 0; color:#f1f1f6; font-size:14px;"><strong>Max IVF Speedup:</strong> {summary['max_speedup']:.2f}x faster than FlatL2</p>
-                <p style="margin:6px 0; color:#f1f1f6; font-size:14px;"><strong>Best IVF Configuration:</strong> nlist={summary['best_nlist']}, nprobe={summary['best_nprobe']}</p>
-                <p style="margin:6px 0; color:#f1f1f6; font-size:14px;"><strong>Best Recall@10:</strong> {summary['best_recall']:.4f} ({summary['best_recall']*100:.2f}%)</p>
-            </div>
-            """, unsafe_allow_html=True)
+                st.markdown(_flat(f"""
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                            padding: 24px 28px; border-radius: 14px; margin: 14px 0;
+                            box-shadow: 0 8px 22px rgba(102,126,234,0.4);">
+                    <h3 style="margin:0 0 10px 0; color:#ffffff !important;">🎉 Benchmark Complete — Real FAISS Results</h3>
+                    <p style="margin:6px 0; color:#f1f1f6 !important; font-size:14px;"><strong>Max IVF Speedup:</strong> {summary['max_speedup']:.2f}x faster than FlatL2</p>
+                    <p style="margin:6px 0; color:#f1f1f6 !important; font-size:14px;"><strong>Best IVF Configuration:</strong> nlist={summary['best_nlist']}, nprobe={summary['best_nprobe']}</p>
+                    <p style="margin:6px 0; color:#f1f1f6 !important; font-size:14px;"><strong>Best Recall@10:</strong> {summary['best_recall']:.4f} ({summary['best_recall']*100:.2f}%)</p>
+                </div>
+                """), unsafe_allow_html=True)
 
-            col1, col2 = st.columns(2)
-            with col1:
-                st.plotly_chart(fig_build, use_container_width=True)
-            with col2:
-                st.plotly_chart(fig_search, use_container_width=True)
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.plotly_chart(fig_build, use_container_width=True)
+                with col2:
+                    st.plotly_chart(fig_search, use_container_width=True)
 
-            st.markdown("<h3>📊 Performance Comparison: FlatL2 vs IVF</h3>", unsafe_allow_html=True)
-            st.dataframe(comparison_df, use_container_width=True)
+                st.markdown("<h3> Performance Comparison: FlatL2 vs IVF</h3>", unsafe_allow_html=True)
+                st.dataframe(comparison_df, use_container_width=True, height=220, hide_index=True)
 
-            st.markdown("<h3>⚙️ IVF Configuration Analysis</h3>", unsafe_allow_html=True)
-            st.dataframe(ivf_config_df, use_container_width=True)
+                st.markdown("<h3> IVF Configuration Analysis</h3>", unsafe_allow_html=True)
+                st.dataframe(ivf_config_df, use_container_width=True, height=190, hide_index=True)
+            except Exception as e:
+                st.error("❌ The benchmark hit an error.")
+                with st.expander("Show error details"):
+                    st.code(f"{e}\n\n{traceback.format_exc()}")
 
 with tab3:
     st.markdown("""
     <div style="color:#f1f1f6;">
 
-    ## 🔍 FAISS Product Matching System
+    ##  FAISS Product Matching System
 
     ### ✨ Key Features
     | Feature | Description |
@@ -604,12 +814,21 @@ with tab3:
     ---
 
     ### 📋 CSV Format Requirements
-    ```csv
-    product_id,name,category,price,discount
-    1,Wireless Headphones,Electronics,99.99,10%
-    2,Red Cotton Shirt,Clothing,29.99,15%
-    3,Gaming Laptop 16GB,Computers,1299.99,5%
-    ```
+
+    </div>
+    """, unsafe_allow_html=True)
+
+    st.code(
+        "product_id,name,category,price,discount\n"
+        "1,Wireless Headphones,Electronics,99.99,10%\n"
+        "2,Red Cotton Shirt,Clothing,29.99,15%\n"
+        "3,Gaming Laptop 16GB,Computers,1299.99,5%",
+        language="csv"
+    )
+
+    st.markdown("""
+    <div style="color:#f1f1f6;">
+
     - **Best practice:** include a `name` or `product_name` column
     - **Alternative:** any text columns will be combined
     - **Performance:** works best with 1K–200K products
