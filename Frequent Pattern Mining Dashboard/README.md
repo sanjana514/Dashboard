@@ -2,7 +2,7 @@
 
 An interactive web dashboard for discovering frequent itemsets in transactional data using the **Apriori algorithm** — built with Streamlit for real-time, visual market basket analysis.
 
-📄 See [`Apriori Mining Dashboard output.pdf`](./Apriori%20Mining%20Dashboard%20output.pdf) for a walkthrough of the dashboard's output and visualizations.
+📄 See [`Apriori Mining Dashboard output.pdf`](./Apriori%20Mining%20Dashboard%20Output.pdf) for a walkthrough of the dashboard's output and visualizations.
 
 ## 📌 Overview
 
