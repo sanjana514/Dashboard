@@ -30,8 +30,10 @@ This dashboard lets users upload transaction data and instantly discover frequen
 ## 📂 Supported CSV Formats
 
 **1. Transaction list (space-separated):**
+```
 T1 Milk Bread
 T2 Bread Butter
+```
 
 **2. One-hot / binary encoded:**
 Each column represents an item; a value of `1`/`True` indicates the item is present in that transaction.
