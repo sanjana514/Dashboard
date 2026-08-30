@@ -2,7 +2,7 @@
 
 An interactive web dashboard for discovering frequent itemsets in transactional data using the **Apriori algorithm** — built with Streamlit for real-time, visual market basket analysis.
 
-📄 See [`Apriori Mining Dashboard output.pdf`](./Apriori%20Mining%20Dashboard%20Output.pdf) for a walkthrough of the dashboard's output and visualizations.
+📄 See [`Apriori Mining Dashboard output.pdf`](./apriori%20mining%20dashboard%20output.pdf) for a walkthrough of the dashboard's output and visualizations.
 
 ## 📌 Overview
 
@@ -42,8 +42,8 @@ Each column represents an item; a value of `1`/`True` indicates the item is pres
 
 **1. Clone the repository:**
 ```bash
-git clone https://github.com/sanjana514/elite-apriori-app.git
-cd elite-apriori-app
+git clone https://github.com/sanjana514/big-data-analytics-projects.git
+cd "big-data-analytics-projects/frequent pattern mining dashboard"
 ```
 
 **2. Install dependencies:**
