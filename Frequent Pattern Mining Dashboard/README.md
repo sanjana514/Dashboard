@@ -1,12 +1,6 @@
 # 🛒 Elite Apriori Mining Dashboard
 
-An interactive web dashboard for discovering frequent itemsets in transactional data using the **Apriori algorithm** — built with Streamlit for real-time, visual market basket analysis.
-
-📄 See [`Apriori Mining Dashboard output.pdf`](./Apriori%20Mining%20Dashboard%20Output.pdf) for a walkthrough of the dashboard's output and visualizations.
-
-## 📌 Overview
-
-This dashboard lets users upload transaction data and instantly discover frequently co-occurring item patterns (association rule mining), commonly used in retail for market basket analysis, recommendation systems, and inventory planning. Users can tune mining parameters, explore results through multiple interactive visualizations, and export findings — all without writing a single line of code.
+Welcome to the **Elite Apriori Mining Dashboard**, a powerful and user-friendly tool built with Streamlit to perform Apriori algorithm-based frequent pattern mining on transactional data. This dashboard allows you to upload CSV files, analyze patterns, visualize results, and export findings with ease.
 
 ## ✨ Features
 
@@ -53,11 +47,10 @@ pip install -r requirements.txt
 ```bash
 streamlit run app.py
 ```
+## Deploying the App
 
-The app will open in your browser at `http://localhost:8501`.
-
-> 💡 A sample dataset (`transactions.csv`) is included in the repo for quick testing.
-
----
+This app is deployed using Streamlit Community Cloud.
+Live URL: https://2hcgapppyrzb2daifseu7mp.streamlit.app/ – Access the full dashboard here!
+Use the transactions.csv dataset file to test the app.
 
 *This project was completed as part of the Big Data Analytics coursework at East West University.*
